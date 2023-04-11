@@ -28,7 +28,7 @@ RUN cd /builder && git clone https://github.com/yaoweibin/nginx_upstream_check_m
 RUN cd /builder/nginx-${NGINX_VERSION} && patch -p1 < /builder/nginx_upstream_check_module/check_1.20.1+.patch
 
 
-# 获取nginx-module-vts
+# 获取 nginx-module-vts
 
 RUN cd /builder && git clone https://github.com/vozlt/nginx-module-vts.git nginx-module-vts
 
