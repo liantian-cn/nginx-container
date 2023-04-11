@@ -18,22 +18,22 @@ https://github.com/vozlt/nginx-module-vts.git
 
 ### nginx-sticky-module-ng
 
-https://bitbucket.org/nginx-goodies/nginx-sticky-module-ng.git
+~~https://bitbucket.org/nginx-goodies/nginx-sticky-module-ng.git~~
 
-https://github.com/Refinitiv/nginx-sticky-module-ng
+~~https://github.com/Refinitiv/nginx-sticky-module-ng~~
 
-https://github.com/ishushkin/nginx-sticky-module-ng/archive/refs/heads/master.zip
+https://github.com/ishushkin/nginx-sticky-module-ng/
 
 ### Just! a Hide Server Signature of Nginx Web Server
 
 https://github.com/torden/ngx_hidden_signature_patch
 
 
-~~### ModSecurity-nginx~~
+### ~~ModSecurity-nginx~~
 
 ~~https://github.com/SpiderLabs/ModSecurity-nginx~~
 
-~~### ngx_waf~~
+### ~~ngx_waf~~
 
 ~~https://github.com/ADD-SP/ngx_waf~~
 
