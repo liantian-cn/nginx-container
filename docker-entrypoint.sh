@@ -11,23 +11,42 @@ fi
 
 if [ ! -f "/config/nginx.conf" ]; then
   echo "missing nginx.conf. Extracting origin_config.tar.gz to /config..."
-  tar -xzf /origin_config.tar.gz -C /config
+  tar -xzf /config.tar.gz -C /config
 else
   echo "nginx.conf file exist, skipping extraction."
 fi
 
-# 检查 /log/access.log 文件是否存在，如果不存在则创建该文件
-if [ ! -f "/log/access.log" ]; then
-  echo "/log/access.log file does not exist. Creating it..."
-  touch /log/access.log
+TIMESTAMP=$(date +%Y-%m-%d-%H-%M)
+
+if [ -f "/log/access.log" ]; then
+  echo "/log/access.log file exist. Create a compressed copy..."
+  gzip -c /log/access.log > /log/access_${TIMESTAMP}.log.gz
+  rm /log/access.log
+
 fi
 
-if [ ! -f "/log/error.log" ]; then
-  echo "/log/error.log file does not exist. Creating it..."
-  touch /log/error.log
+touch /log/access.log
+
+if [ -f "/log/error.log" ]; then
+  echo "/log/error.log file exist. Create a compressed copy..."
+  gzip -c /log/error.log > /log/error_${TIMESTAMP}.log.gz
+  rm /log/access.log
+
 fi
+
+touch /log/access.log
+
+if [ -f "/log/modsec_audit.log" ]; then
+  echo "/log/modsec_audit.log file exist. Create a compressed copy..."
+  gzip -c /log/modsec_audit.log > /log/modsec_audit_${TIMESTAMP}.log.gz
+  rm /log/access.log
+
+fi
+
+touch /log/modsec_audit.log
 
 chmod ugo+w /log/access.log
-chmod ugo+w /log/error.log
+chmod ugo+w /log/access.log
+chmod ugo+w /log/modsec_audit.log
 
 exec "$@"

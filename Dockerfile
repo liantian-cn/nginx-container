@@ -1,94 +1,54 @@
-FROM alpine AS build
+FROM localhost/tmp_2 AS build
 
 
 ENV NGINX_VERSION 1.22.1
 
+ENV MODSEC_VERSION v3.0.9
+ENV MOD_NGX_VERSION v1.0.3
 
-RUN apk update && \
-    apk upgrade && \
-    apk add --no-cache bash bash-doc bash-completion nano build-base pcre-dev openssl-dev zlib-dev wget git unzip flex bison uthash uthash-dev libsodium libsodium-dev
+ENV OWASP_VERSION v3.3.4
+
+ENV UPSTREAM_CHECK_VERSION v0.4.0
+ENV VTS_VERSION v0.2.1
 
 
+RUN addgroup --gid 404 --system nginx && \
+    adduser --uid 404 --system --disabled-password --no-create-home --home /webroot --ingroup nginx nginx
 
-RUN mkdir /builder
+RUN mkdir /app && mkdir /config && mkdir /log && mkdir /webroot  
 
 # 下载并解压nginx
 
-RUN cd /builder && wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz
-RUN cd /builder && tar -zxvf nginx-${NGINX_VERSION}.tar.gz
+# nginx_upstream_check_module给nginx-sticky-module-ng 打补丁
+WORKDIR /opt/nginx-sticky-module-ng
+RUN patch -p0 < ../nginx_upstream_check_module/nginx-sticky-module.patch
+
+# nginx_upstream_check_module给nginx打补丁
+WORKDIR /opt/nginx
+RUN patch -p1 < ../nginx_upstream_check_module/check_1.20.1+.patch
+
+# ngx_hidden_signature_patch给nginx打补丁
+WORKDIR /opt/nginx
+RUN patch -p0 < ../ngx_hidden_signature_patch/nginx-1.22.x-1.23.x-ngx_http_header_filter_module.c.patch  && \
+    patch -p0 < ../ngx_hidden_signature_patch/nginx-1.14.x-1.23.x-ngx_http_special_response.c.patch  && \
+    patch -p0 < ../ngx_hidden_signature_patch/nginx-1.14.x-1.23.x-ngx_http_v2_filter_module.c.patch
 
 
-# 获取 headers-more-nginx-module
-
-RUN cd /builder && git clone https://github.com/openresty/headers-more-nginx-module.git headers-more-nginx-module
-
-# 获取 nginx_upstream_check_module 并打补丁
-
-RUN cd /builder && git clone https://github.com/yaoweibin/nginx_upstream_check_module.git nginx_upstream_check_module
-RUN cd /builder/nginx-${NGINX_VERSION} && patch -p1 < /builder/nginx_upstream_check_module/check_1.20.1+.patch
-
-
-# 获取 nginx-module-vts
-
-RUN cd /builder && git clone https://github.com/vozlt/nginx-module-vts.git nginx-module-vts
-
-
-# 获取 nginx-sticky-module-ng 并打补丁
-
-RUN cd /builder && git clone https://github.com/ishushkin/nginx-sticky-module-ng.git nginx-sticky-module-ng
-RUN cd /builder/nginx-sticky-module-ng && patch -p0 < /builder/nginx_upstream_check_module/nginx-sticky-module.patch
-
-
-# 获取 ngx_hidden_signature_patch 并打补丁
-
-RUN cd /builder && git clone https://github.com/torden/ngx_hidden_signature_patch.git ngx_hidden_signature_patch
-RUN cd /builder/nginx-${NGINX_VERSION} && \
-    patch -p0 < /builder/ngx_hidden_signature_patch/nginx-1.22.x-1.23.x-ngx_http_header_filter_module.c.patch && \
-    patch -p0 < /builder/ngx_hidden_signature_patch/nginx-1.14.x-1.23.x-ngx_http_special_response.c.patch && \
-    patch -p0 < /builder/ngx_hidden_signature_patch/nginx-1.14.x-1.23.x-ngx_http_v2_filter_module.c.patch
-
-
-# 获取naxsi 
-
-RUN cd /builder && wget -O naxsi.zip https://github.com/wargio/naxsi/releases/download/1.4/naxsi-1.4-src-with-deps.zip
-RUN cd /builder && unzip naxsi.zip -d naxsi
-
-
-
-
-
-# 构建基本目录
-
-RUN  mkdir /app && mkdir /config && mkdir /log
-
-
-# 编译并安装静态版本nginx，生成文件 /usr/local/nginx/sbin/nginx
-RUN cd /builder/nginx-${NGINX_VERSION} && \
-    \
-    ./configure --with-http_ssl_module          \
-                --with-http_stub_status_module  \
-                --with-http_secure_link_module  \
-                --with-pcre                     \
-                --with-http_gzip_static_module  \
-                --with-http_realip_module       \
-                --with-http_sub_module          \
-                --with-http_v2_module           \
-                --add-module=/builder/headers-more-nginx-module    \
-                --add-module=/builder/naxsi/naxsi_src              \
-                --add-module=/builder/nginx-module-vts             \
-                --add-module=/builder/nginx-sticky-module-ng       \
-                --add-module=/builder/nginx_upstream_check_module  \
-    && \
-    make  && \
-    make install
+# 编译ModSecurity
+WORKDIR /opt/ModSecurity
+RUN ./build.sh 
+RUN ./configure --with-lmdb
+RUN make -j$(nproc)
+RUN make install
 
 # 编译并安装动态版本nginx
-
-RUN cd /builder/nginx-${NGINX_VERSION} && \
-    \
-    ./configure --prefix=/app \
+WORKDIR /opt/nginx
+RUN ./configure --prefix=/app \
                 --modules-path=/app/modules \
                 --sbin-path=/app/nginx \
+                \
+                --user=nginx \
+			    --group=nginx \
                 \
                 --conf-path=/config/nginx.conf  \
                 --http-log-path=/log/access.log \
@@ -116,49 +76,54 @@ RUN cd /builder/nginx-${NGINX_VERSION} && \
                 --without-http_ssi_module       \
                 --without-http_grpc_module      \
                 \
-                --with-mail=dynamic     \
-                --with-mail_ssl_module  \
+                --add-module=/opt/headers-more-nginx-module  \
+                --add-module=/opt/ModSecurity-nginx     \
+                --add-module=/opt/nginx-module-vts             \
+                --add-module=/opt/nginx-sticky-module-ng       \
+                --add-module=/opt/nginx_upstream_check_module  \
                 \
-                --with-stream=dynamic               \
-                --with-stream_ssl_module            \
-                --with-stream_ssl_preread_module    \
-                --with-stream_realip_module         \
-                \
-                --with-compat \
-                --add-dynamic-module=/builder/headers-more-nginx-module     \
-                --add-dynamic-module=/builder/naxsi/naxsi_src               \
-                --add-dynamic-module=/builder/nginx-module-vts              \
-                --add-dynamic-module=/builder/nginx-sticky-module-ng        \
-                --add-dynamic-module=/builder/nginx_upstream_check_module   \
-                \
-                --build=alpine-$(cat /etc/alpine-release)-$(date +%Y%m%d%H%M%S)  && \
-    \
-    make  && \
-    make install
+                --build="alpine-$(cat /etc/alpine-release) $(date +%Y/%m/%d\ %H:%M)"
+RUN make
+RUN make install
 
-# 复制一些插件的设置文件到/config,并将/config的配置文件打包
-COPY nginx.conf /config/nginx.conf
-RUN cp -r /builder/naxsi/naxsi_rules/ /config/
-RUN cd /config && tar -czvf /tmp/config.tar.gz *
+# 删除无用的文件
+RUN rm -rf /usr/local/modsecurity/lib/libmodsecurity.a 	/usr/local/modsecurity/lib/libmodsecurity.la
 
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+# 复制配置文件
+COPY config/ /config/
+RUN cp /opt/ModSecurity/modsecurity.conf-recommended /config/modsec/modsecurity.conf
+RUN cp /opt/ModSecurity/unicode.mapping /config/modsec/unicode.mapping
+RUN sed -i 's/SecRuleEngine DetectionOnly/SecRuleEngine On/' /config/modsec/modsecurity.conf
+RUN mv /usr/local/coreruleset/crs-setup.conf.example /usr/local/coreruleset/crs-setup.conf
 
-RUN chmod +x /docker-entrypoint.sh
+# 将/config的配置文件打包
+WORKDIR /config
+RUN tar -czvf /tmp/config.tar.gz *
 
 # 将nginx程序和依赖打包
+WORKDIR /
+RUN tar -czvf /tmp/nginx.tar.gz -h /app $(ldd /app/nginx | grep "=> /" | awk '{print $3}' | sort -u)
 
-RUN cd / && tar -czvf /tmp/nginx.tar.gz -h /app /docker-entrypoint.sh $(ldd /usr/local/nginx/sbin/nginx | grep "=> /" | awk '{print $3}' | sort -u)
+FROM alpine  as production
 
-
-FROM alpine
+LABEL maintainer="liantian-cn"
 
 # 安装必要的包 bash和nano
-RUN apk update && apk upgrade && apk add --no-cache bash nano && rm -vrf /var/cache/apk/*
+RUN apk update &&  apk add --no-cache bash nano bash-completion && rm -vrf /var/cache/apk/*
 
-# 从主容器复制config.tar.gz和nginx.tar.gz
+# 新建nginx用户
+RUN addgroup --gid 404 --system nginx && \
+    adduser --uid 404 --system --disabled-password --no-create-home --home /webroot --ingroup nginx nginx
 
-COPY --from=build /tmp/config.tar.gz /origin_config.tar.gz
+# 从build容器复制config.tar.gz和nginx.tar.gz
+
+COPY --from=build /tmp/config.tar.gz /config.tar.gz
 COPY --from=build /tmp/nginx.tar.gz /nginx.tar.gz
+
+# 从build容器复制modsecurity和coreruleset
+COPY --from=build /usr/local/modsecurity /usr/local/modsecurity
+COPY --from=build /usr/local/coreruleset /usr/local/coreruleset
+COPY REQUEST-910-IP-REPUTATION-remove-geo.conf /usr/local/coreruleset/rules/
 
 # 将nginx解压
 
@@ -166,9 +131,15 @@ RUN tar -xzvf  /nginx.tar.gz -C / && \
     rm /nginx.tar.gz
 
 # 创建安装目录
-RUN mkdir -p /data/static && mkdir -p /data/static && mkdir /log && mkdir /config
+RUN mkdir -p /webroot && mkdir /log && mkdir /config
 
-VOLUME ["/log", "/config", "/data/static", "/data/media"]
+VOLUME ["/log", "/config", "/webroot"]
+
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+
+RUN chmod +x /docker-entrypoint.sh
+
+WORKDIR /webroot
 
 EXPOSE 80 443
 
