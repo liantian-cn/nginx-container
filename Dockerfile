@@ -121,7 +121,7 @@ COPY --from=build /tmp/config.tar.gz /config.tar.gz
 COPY --from=build /tmp/nginx.tar.gz /nginx.tar.gz
 
 # 从build容器复制modsecurity和coreruleset
-COPY --from=build /usr/local/modsecurity /usr/local/modsecurity
+# COPY --from=build /usr/local/modsecurity /usr/local/modsecurity
 COPY --from=build /usr/local/coreruleset /usr/local/coreruleset
 COPY REQUEST-910-IP-REPUTATION-remove-geo.conf /usr/local/coreruleset/rules/
 
