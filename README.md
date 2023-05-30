@@ -47,15 +47,18 @@ podman rmi $(podman images -qa custom-nginx) -f
 build镜像
 ```
 buildah bud -t custom-nginx:1.22.1 .
+buildah bud -t waf-nginx:1.22.1 .
 buildah bud -t ubi-nginx:1.22.1 .
 ```
 
 测试镜像
 ```
 
-podman run --network=host --rm -it ubi-minimal sh
 podman run --network=host --rm -it localhost/custom-nginx:1.22.1 /bin/bash
 podman run --network=host --rm localhost/custom-nginx:1.22.1
+
+podman run --network=host --rm -it localhost/ubi-nginx:1.22.1 /bin/bash
+podman run --network=host --rm localhost/ubi-nginx:1.22.1
 
 
 ```
@@ -64,7 +67,12 @@ podman run --network=host --rm localhost/custom-nginx:1.22.1
 ```
 
 podman save -o custom-nginx.1.22.1.tar localhost/custom-nginx:1.22.1
+
 podman load -i custom-nginx.1.22.1.tar
+
+
+podman save -o ubi-nginx.1.22.1.tar ubi-nginx:1.22.1
+podman save -o waf-nginx.1.22.1.tar waf-nginx:1.22.1
 
 ```
 
