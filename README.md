@@ -74,6 +74,9 @@ podman load -i custom-nginx.1.22.1.tar
 podman save -o ubi-nginx.1.22.1.tar ubi-nginx:1.22.1
 podman save -o waf-nginx.1.22.1.tar waf-nginx:1.22.1
 
+
+podman run --network=host --rm -it localhost/waf-nginx:1.22.1 /bin/bash
+
 ```
 
 
